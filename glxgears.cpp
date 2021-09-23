@@ -258,7 +258,6 @@ static std::pair<GLuint, GLuint> gear(GLfloat inner_radius, GLfloat outer_radius
    return {vao, vbo};
 }
 
-
 static void draw(glm::mat4 view_projection)
 {
    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -384,10 +383,12 @@ static const char fragmentShader[] =
 "uniform vec3 light_position;\n"
 "out vec4 color;\n"
 "void main(){\n"
-"  vec3 light_vector = normalize(light_position - (vs_position.xyz / vs_position.w));\n"
-"  float v = 0.5 + 0.5 * dot(light_vector, vs_normal);\n"
-"  if (v < 0) color = vec4(0, 0, 0, 1);\n"
-"  else color = v * vec4(vs_color, 1.0);\n"
+//"  vec3 light_vector = normalize(light_position - (vs_position.xyz / vs_position.w));\n" // Point light
+"  vec3 light_vector = normalize(light_position);\n" // Directional light
+"  vec3 middle = (light_vector + vs_normal) / 2;\n" // I can't recall *why* this does a thing, but this approximates OG glxgears results.
+"  float dp = dot(middle, vs_normal);\n"
+"  float v = max(dp, 0.0);\n"
+"  color = v * vec4(vs_color, 1.0);\n"
 "}\n"
 ;
 
