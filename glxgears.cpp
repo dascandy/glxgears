@@ -26,7 +26,7 @@
  * See usage() below for command line options.
  */
 
-
+#include <iostream>
 #include <vector>
 #include <math.h>
 #include <stdlib.h>
@@ -35,6 +35,10 @@
 #include <X11/Xlib.h>
 #include <X11/keysym.h>
 #include <glew.h>
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
+#include <glm/gtx/string_cast.hpp>
 #include <GL/gl.h>
 #include <GL/glx.h>
 #include <GL/glxext.h>
@@ -111,6 +115,8 @@ static GLfloat fix_point = 40.0;        /* Fixation point distance.  */
 static GLfloat left, right, asp;        /* Stereo frustum params.  */
 
 static GLuint shaderProgram = 0;        /* Shader program */
+
+static GLfloat degrees_per_rad = 57.2958;
 
 struct vertex {
   GLfloat position[3];
@@ -228,11 +234,11 @@ static GLint gear(GLfloat inner_radius, GLfloat outer_radius, GLfloat width,
 
       /* draw inside radius cylinder */
       buffer.push_back({ r0 * cos(angle), r0 * sin(angle), -width * 0.5f, -cos(angle), -sin(angle), 0.0, red, green, blue });
-      buffer.push_back({ r0 * cos(angle), r0 * sin(angle), width * 0.5f, -cos(angle2), -sin(angle2), 0.0, red, green, blue });
-      buffer.push_back({ r0 * cos(angle2), r0 * sin(angle2), width * 0.5f, -cos(angle), -sin(angle), 0.0, red, green, blue });
-      buffer.push_back({ r0 * cos(angle), r0 * sin(angle), -width * 0.5f, -cos(angle2), -sin(angle2), 0.0, red, green, blue });
+      buffer.push_back({ r0 * cos(angle), r0 * sin(angle), width * 0.5f, -cos(angle), -sin(angle), 0.0, red, green, blue });
       buffer.push_back({ r0 * cos(angle2), r0 * sin(angle2), width * 0.5f, -cos(angle2), -sin(angle2), 0.0, red, green, blue });
-      buffer.push_back({ r0 * cos(angle2), r0 * sin(angle2), -width * 0.5f, -cos(angle), -sin(angle), 0.0, red, green, blue });
+      buffer.push_back({ r0 * cos(angle), r0 * sin(angle), -width * 0.5f, -cos(angle), -sin(angle), 0.0, red, green, blue });
+      buffer.push_back({ r0 * cos(angle2), r0 * sin(angle2), width * 0.5f, -cos(angle2), -sin(angle2), 0.0, red, green, blue });
+      buffer.push_back({ r0 * cos(angle2), r0 * sin(angle2), -width * 0.5f, -cos(angle2), -sin(angle2), 0.0, red, green, blue });
    }
 
    GLuint vao;
@@ -254,38 +260,29 @@ static GLint gear(GLfloat inner_radius, GLfloat outer_radius, GLfloat width,
 }
 
 
-static void
-draw(void)
+static void draw(glm::mat4 view_projection)
 {
    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-   glPushMatrix();
-   glRotatef(view_rotx, 1.0, 0.0, 0.0);
-   glRotatef(view_roty, 0.0, 1.0, 0.0);
-   glRotatef(view_rotz, 0.0, 0.0, 1.0);
+   view_projection = glm::rotate(view_projection, view_rotx / degrees_per_rad, glm::vec3(1.0, 0.0, 0.0));
+   view_projection = glm::rotate(view_projection, view_roty / degrees_per_rad, glm::vec3(0.0, 1.0, 0.0));
+   view_projection = glm::rotate(view_projection, view_rotz / degrees_per_rad, glm::vec3(0.0, 0.0, 1.0));
+   glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "vp"), 1, false, glm::value_ptr(view_projection));
 
-   glPushMatrix();
-   glTranslatef(-3.0, -2.0, 0.0);
-   glRotatef(angle, 0.0, 0.0, 1.0);
+   glm::mat4 gear1_m = glm::rotate(glm::translate(glm::mat4(1.0f), glm::vec3(-3.0, -2.0, 0.0)), angle / degrees_per_rad, glm::vec3(0.0, 0.0, 1.0));
+   glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "m"), 1, false, glm::value_ptr(gear1_m));
    glBindVertexArray(gear1);
    glDrawArrays(GL_TRIANGLES, 0, 1320);
-   glPopMatrix();
 
-   glPushMatrix();
-   glTranslatef(3.1, -2.0, 0.0);
-   glRotatef(-2.0 * angle - 9.0, 0.0, 0.0, 1.0);
+   glm::mat4 gear2_m = glm::rotate(glm::translate(glm::mat4(1.0f), glm::vec3(3.1, -2.0, 0.0)), (-2.0f * angle - 9.0f) / degrees_per_rad, glm::vec3(0.0, 0.0, 1.0));
+   glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "m"), 1, false, glm::value_ptr(gear2_m));
    glBindVertexArray(gear2);
    glDrawArrays(GL_TRIANGLES, 0, 660);
-   glPopMatrix();
 
-   glPushMatrix();
-   glTranslatef(-3.1, 4.2, 0.0);
-   glRotatef(-2.0 * angle - 25.0, 0.0, 0.0, 1.0);
+   glm::mat4 gear3_m = glm::rotate(glm::translate(glm::mat4(1.0f), glm::vec3(-3.1, 4.2, 0.0)), (-2.0f * angle - 25.0f) / degrees_per_rad, glm::vec3(0.0, 0.0, 1.0));
+   glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "m"), 1, false, glm::value_ptr(gear3_m));
    glBindVertexArray(gear3);
    glDrawArrays(GL_TRIANGLES, 0, 660);
-   glPopMatrix();
-
-   glPopMatrix();
 }
 
 static void
@@ -294,41 +291,17 @@ draw_gears(void)
    if (stereo) {
       /* First left eye.  */
       glDrawBuffer(GL_BACK_LEFT);
-
-      glMatrixMode(GL_PROJECTION);
-      glLoadIdentity();
-      glFrustum(left, right, -asp, asp, 5.0, 60.0);
-
-      glMatrixMode(GL_MODELVIEW);
-
-      glLoadIdentity();
-      glTranslatef(0.0, 0.0, -40.0);
-      glTranslated(+0.5 * eyesep, 0.0, 0.0);
-      draw();
+      glm::mat4 view_projection_left = glm::translate(glm::frustum(left, right, -asp, asp, 5.0f, 60.0f), glm::vec3(0.5 * eyesep, 0.0, -40.0));
+      draw(view_projection_left);
 
       /* Then right eye.  */
       glDrawBuffer(GL_BACK_RIGHT);
-
-      glMatrixMode(GL_PROJECTION);
-      glLoadIdentity();
-      glFrustum(-right, -left, -asp, asp, 5.0, 60.0);
-
-      glMatrixMode(GL_MODELVIEW);
-
-      glLoadIdentity();
-      glTranslatef(0.0, 0.0, -40.0);
-      glTranslated(-0.5 * eyesep, 0.0, 0.0);
-      draw();
+      glm::mat4 view_projection_right = glm::translate(glm::frustum(-right, -left, -asp, asp, 5.0f, 60.0f), glm::vec3(-0.5 * eyesep, 0.0, -40.0));
+      draw(view_projection_right);
    }
    else {
-      glMatrixMode(GL_PROJECTION);
-      glLoadIdentity();
-      glFrustum(-1.0, 1.0, -asp, asp, 5.0, 60.0);
-
-      glMatrixMode(GL_MODELVIEW);
-      glLoadIdentity();
-      glTranslatef(0.0, 0.0, -40.0);
-      draw();
+      glm::mat4 view_projection = glm::translate(glm::frustum(-1.0f, 1.0f, -asp, asp, 5.0f, 60.0f), glm::vec3(0.0, 0.0, -40.0));
+      draw(view_projection);
    }
 }
 
@@ -384,21 +357,21 @@ reshape(int width, int height)
    right = 5.0 * ((w + 0.5 * eyesep) / fix_point);
 }
    
-
 static const char vertexShader[] =
 "#version 330 core\n"
 "#extension GL_ARB_separate_shader_objects : enable\n"
 "layout(location = 0) in vec3 position;\n"
 "layout(location = 1) in vec3 normal;\n"
 "layout(location = 2) in vec3 color;\n"
-"uniform mat4 mvp;\n"
+"uniform mat4 m;\n"
+"uniform mat4 vp;\n"
 "layout(location = 0) out vec4 vs_position;\n"
 "layout(location = 1) out vec3 vs_normal;\n"
 "layout(location = 2) out vec3 vs_color;\n"
 "void main(){\n"
-"  vs_position = vec4(position, 1);\n"
-"  gl_Position = mvp * vec4(position, 1);\n"
-"  vs_normal = mat3(mvp) * normal;\n"
+"  vs_position = m * vec4(position, 1);\n"
+"  gl_Position = vp * vs_position;\n"
+"  vs_normal = normalize(mat3(m) * normal);\n"
 "  vs_color = color;\n"
 "}\n"
 ;
@@ -409,9 +382,13 @@ static const char fragmentShader[] =
 "layout(location = 0) in vec4 vs_position;\n"
 "layout(location = 1) in vec3 vs_normal;\n"
 "layout(location = 2) in vec3 vs_color;\n"
+"uniform vec3 light_position;\n"
 "out vec4 color;\n"
 "void main(){\n"
-"  color = vec4(vs_color, 1.0);\n"
+"  vec3 light_vector = normalize(light_position - (vs_position.xyz / vs_position.w));\n"
+"  float v = 0.5 + 0.5 * dot(light_vector, vs_normal);\n"
+"  if (v < 0) color = vec4(0, 0, 0, 1);\n"
+"  else color = v * vec4(vs_color, 1.0);\n"
 "}\n"
 ;
 
@@ -455,13 +432,10 @@ init(void)
    glAttachShader(shaderProgram, fs);
    glLinkProgram(shaderProgram);
 
-   static GLfloat pos[4] = { 5.0, 5.0, 10.0, 0.0 };
-   glLightfv(GL_LIGHT0, GL_POSITION, pos);
-
    glUseProgram(shaderProgram);
 
-   float matrix[16] = { 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1 };
-   glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "mvp"), 1, false, matrix);
+   static GLfloat pos[4] = { 5.0, 5.0, 10.0 };
+   glUniform3fv(glGetUniformLocation(shaderProgram, "light_position"), 1, pos);
 }
 
 /**
