@@ -26,7 +26,6 @@
  * See usage() below for command line options.
  */
 
-#include <iostream>
 #include <vector>
 #include <math.h>
 #include <stdlib.h>
@@ -103,7 +102,7 @@ current_time(void)
 #define DRAW 2
 
 static GLfloat view_rotx = 20.0, view_roty = 30.0, view_rotz = 0.0;
-static GLint gear1, gear2, gear3;
+static std::pair<GLuint, GLuint> gear1, gear2, gear3;
 static GLfloat angle = 0.0;
 
 static GLboolean fullscreen = GL_FALSE; /* Create a single fullscreen window */
@@ -135,7 +134,7 @@ struct vertex {
  *          teeth - number of teeth
  *          tooth_depth - depth of tooth
  */
-static GLint gear(GLfloat inner_radius, GLfloat outer_radius, GLfloat width,
+static std::pair<GLuint, GLuint> gear(GLfloat inner_radius, GLfloat outer_radius, GLfloat width,
      GLint teeth, GLfloat tooth_depth, GLfloat red, GLfloat green, GLfloat blue)
 {
    GLfloat r0 = inner_radius, r1 = outer_radius - tooth_depth / 2.0, r2 = outer_radius + tooth_depth / 2.0;
@@ -256,7 +255,7 @@ static GLint gear(GLfloat inner_radius, GLfloat outer_radius, GLfloat width,
    glEnableVertexAttribArray(2);
    glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(vertex), (void*)24);
 
-   return vao;
+   return {vao, vbo};
 }
 
 
@@ -271,17 +270,17 @@ static void draw(glm::mat4 view_projection)
 
    glm::mat4 gear1_m = glm::rotate(glm::translate(glm::mat4(1.0f), glm::vec3(-3.0, -2.0, 0.0)), angle / degrees_per_rad, glm::vec3(0.0, 0.0, 1.0));
    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "m"), 1, false, glm::value_ptr(gear1_m));
-   glBindVertexArray(gear1);
+   glBindVertexArray(gear1.first);
    glDrawArrays(GL_TRIANGLES, 0, 1320);
 
    glm::mat4 gear2_m = glm::rotate(glm::translate(glm::mat4(1.0f), glm::vec3(3.1, -2.0, 0.0)), (-2.0f * angle - 9.0f) / degrees_per_rad, glm::vec3(0.0, 0.0, 1.0));
    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "m"), 1, false, glm::value_ptr(gear2_m));
-   glBindVertexArray(gear2);
+   glBindVertexArray(gear2.first);
    glDrawArrays(GL_TRIANGLES, 0, 660);
 
    glm::mat4 gear3_m = glm::rotate(glm::translate(glm::mat4(1.0f), glm::vec3(-3.1, 4.2, 0.0)), (-2.0f * angle - 25.0f) / degrees_per_rad, glm::vec3(0.0, 0.0, 1.0));
    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "m"), 1, false, glm::value_ptr(gear3_m));
-   glBindVertexArray(gear3);
+   glBindVertexArray(gear3.first);
    glDrawArrays(GL_TRIANGLES, 0, 660);
 }
 
@@ -431,6 +430,11 @@ init(void)
    glAttachShader(shaderProgram, vs);
    glAttachShader(shaderProgram, fs);
    glLinkProgram(shaderProgram);
+
+   glDetachShader(shaderProgram, vs);
+   glDetachShader(shaderProgram, fs);
+   glDeleteShader(vs);
+   glDeleteShader(fs);
 
    glUseProgram(shaderProgram);
 
@@ -812,9 +816,16 @@ main(int argc, char *argv[])
 
    event_loop(dpy, win);
 
-   glDeleteLists(gear1, 1);
-   glDeleteLists(gear2, 1);
-   glDeleteLists(gear3, 1);
+   glDeleteVertexArrays(1, &gear1.first);
+   glDeleteBuffers(1, &gear1.second);
+   glDeleteVertexArrays(1, &gear2.first);
+   glDeleteBuffers(1, &gear2.second);
+   glDeleteVertexArrays(1, &gear3.first);
+   glDeleteBuffers(1, &gear3.second);
+
+   glUseProgram(0);
+   glDeleteProgram(shaderProgram);
+
    glXMakeCurrent(dpy, None, NULL);
    glXDestroyContext(dpy, ctx);
    XDestroyWindow(dpy, win);
