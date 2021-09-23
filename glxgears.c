@@ -279,7 +279,6 @@ draw(void)
    glPopMatrix();
 }
 
-
 static void
 draw_gears(void)
 {
@@ -293,10 +292,10 @@ draw_gears(void)
 
       glMatrixMode(GL_MODELVIEW);
 
-      glPushMatrix();
+      glLoadIdentity();
+      glTranslatef(0.0, 0.0, -40.0);
       glTranslated(+0.5 * eyesep, 0.0, 0.0);
       draw();
-      glPopMatrix();
 
       /* Then right eye.  */
       glDrawBuffer(GL_BACK_RIGHT);
@@ -307,12 +306,19 @@ draw_gears(void)
 
       glMatrixMode(GL_MODELVIEW);
 
-      glPushMatrix();
+      glLoadIdentity();
+      glTranslatef(0.0, 0.0, -40.0);
       glTranslated(-0.5 * eyesep, 0.0, 0.0);
       draw();
-      glPopMatrix();
    }
    else {
+      glMatrixMode(GL_PROJECTION);
+      glLoadIdentity();
+      glFrustum(-1.0, 1.0, -asp, asp, 5.0, 60.0);
+
+      glMatrixMode(GL_MODELVIEW);
+      glLoadIdentity();
+      glTranslatef(0.0, 0.0, -40.0);
       draw();
    }
 }
@@ -361,32 +367,14 @@ draw_frame(Display *dpy, Window win)
 static void
 reshape(int width, int height)
 {
+   GLfloat w = fix_point * (1.0 / 5.0);
    glViewport(0, 0, (GLint) width, (GLint) height);
 
-   if (stereo) {
-      GLfloat w;
-
-      asp = (GLfloat) height / (GLfloat) width;
-      w = fix_point * (1.0 / 5.0);
-
-      left = -5.0 * ((w - 0.5 * eyesep) / fix_point);
-      right = 5.0 * ((w + 0.5 * eyesep) / fix_point);
-   }
-   else {
-      GLfloat h = (GLfloat) height / (GLfloat) width;
-
-      glMatrixMode(GL_PROJECTION);
-      glLoadIdentity();
-      glFrustum(-1.0, 1.0, -h, h, 5.0, 60.0);
-   }
-   
-   glMatrixMode(GL_MODELVIEW);
-   glLoadIdentity();
-   glTranslatef(0.0, 0.0, -40.0);
+   asp = (GLfloat) height / (GLfloat) width;
+   left = -5.0 * ((w - 0.5 * eyesep) / fix_point);
+   right = 5.0 * ((w + 0.5 * eyesep) / fix_point);
 }
    
-
-
 static void
 init(void)
 {
