@@ -27,12 +27,14 @@
  */
 
 
+#include <vector>
 #include <math.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <X11/Xlib.h>
 #include <X11/keysym.h>
+#include <glew.h>
 #include <GL/gl.h>
 #include <GL/glx.h>
 #include <GL/glxext.h>
@@ -108,6 +110,13 @@ static GLfloat eyesep = 5.0;            /* Eye separation. */
 static GLfloat fix_point = 40.0;        /* Fixation point distance.  */
 static GLfloat left, right, asp;        /* Stereo frustum params.  */
 
+static GLuint shaderProgram = 0;        /* Shader program */
+
+struct vertex {
+  GLfloat position[3];
+  GLfloat normal[3];
+  GLfloat color[3];
+};
 
 /*
  *
@@ -120,186 +129,128 @@ static GLfloat left, right, asp;        /* Stereo frustum params.  */
  *          teeth - number of teeth
  *          tooth_depth - depth of tooth
  */
-static void
-gear(GLfloat inner_radius, GLfloat outer_radius, GLfloat width,
-     GLint teeth, GLfloat tooth_depth)
+static GLint gear(GLfloat inner_radius, GLfloat outer_radius, GLfloat width,
+     GLint teeth, GLfloat tooth_depth, GLfloat red, GLfloat green, GLfloat blue)
 {
-   GLint i;
-   GLfloat r0, r1, r2;
-   GLfloat angle, da, angle2;
-   GLfloat u, v, len, u2, v2;
+   GLfloat r0 = inner_radius, r1 = outer_radius - tooth_depth / 2.0, r2 = outer_radius + tooth_depth / 2.0;
+   GLfloat da = 2.0 * M_PI / teeth / 4.0;
+   std::vector<vertex> buffer;
 
-   r0 = inner_radius;
-   r1 = outer_radius - tooth_depth / 2.0;
-   r2 = outer_radius + tooth_depth / 2.0;
+   for (size_t i = 0; i < (size_t)teeth; i++) {
+      GLfloat angle = i * 2.0 * M_PI / teeth;
+      GLfloat angle2 = (i+1) * 2.0 * M_PI / teeth;
 
-   da = 2.0 * M_PI / teeth / 4.0;
-
-   glShadeModel(GL_FLAT);
-
-   glBegin(GL_TRIANGLES);
-   for (i = 0; i < teeth; i++) {
-      angle = i * 2.0 * M_PI / teeth;
-      angle2 = (i+1) * 2.0 * M_PI / teeth;
-
-      u = r2 * cos(angle + da) - r1 * cos(angle);
-      v = r2 * sin(angle + da) - r1 * sin(angle);
-      len = sqrt(u * u + v * v);
+      GLfloat u = r2 * cos(angle + da) - r1 * cos(angle);
+      GLfloat v = r2 * sin(angle + da) - r1 * sin(angle);
+      GLfloat len = sqrt(u * u + v * v);
       u /= len;
       v /= len;
-      u2 = r1 * cos(angle + 3 * da) - r2 * cos(angle + 2 * da);
-      v2 = r1 * sin(angle + 3 * da) - r2 * sin(angle + 2 * da);
+      GLfloat u2 = r1 * cos(angle + 3 * da) - r2 * cos(angle + 2 * da);
+      GLfloat v2 = r1 * sin(angle + 3 * da) - r2 * sin(angle + 2 * da);
+      GLfloat len2 = sqrt(u2 * u2 + v2 * v2);
+      u2 /= len2;
+      v2 /= len2;
 
       /* draw front face */
-      glNormal3f(0.0, 0.0, 1.0);
-      glVertex3f(r0 * cos(angle), r0 * sin(angle), width * 0.5);
-      glNormal3f(0.0, 0.0, 1.0);
-      glVertex3f(r1 * cos(angle), r1 * sin(angle), width * 0.5);
-      glNormal3f(0.0, 0.0, 1.0);
-      glVertex3f(r1 * cos(angle + 3 * da), r1 * sin(angle + 3 * da), width * 0.5);
-      glNormal3f(0.0, 0.0, 1.0);
-      glVertex3f(r0 * cos(angle), r0 * sin(angle), width * 0.5);
-      glNormal3f(0.0, 0.0, 1.0);
-      glVertex3f(r1 * cos(angle + 3 * da), r1 * sin(angle + 3 * da), width * 0.5);
-      glNormal3f(0.0, 0.0, 1.0);
-      glVertex3f(r0 * cos(angle), r0 * sin(angle), width * 0.5);
+      buffer.push_back({ r0 * cos(angle), r0 * sin(angle), width * 0.5f, 0.0, 0.0, 1.0, red, green, blue });
+      buffer.push_back({ r1 * cos(angle), r1 * sin(angle), width * 0.5f, 0.0, 0.0, 1.0, red, green, blue });
+      buffer.push_back({ r1 * cos(angle + 3 * da), r1 * sin(angle + 3 * da), width * 0.5f, 0.0, 0.0, 1.0, red, green, blue });
+      buffer.push_back({ r0 * cos(angle), r0 * sin(angle), width * 0.5f, 0.0, 0.0, 1.0, red, green, blue });
+      buffer.push_back({ r1 * cos(angle + 3 * da), r1 * sin(angle + 3 * da), width * 0.5f, 0.0, 0.0, 1.0, red, green, blue });
+      buffer.push_back({ r0 * cos(angle), r0 * sin(angle), width * 0.5f, 0.0, 0.0, 1.0, red, green, blue });
 
-      glNormal3f(0.0, 0.0, 1.0);
-      glVertex3f(r0 * cos(angle), r0 * sin(angle), width * 0.5);
-      glNormal3f(0.0, 0.0, 1.0);
-      glVertex3f(r1 * cos(angle + 3 * da), r1 * sin(angle + 3 * da), width * 0.5);
-      glNormal3f(0.0, 0.0, 1.0);
-      glVertex3f(r1 * cos(angle2), r1 * sin(angle2), width * 0.5);
-      glNormal3f(0.0, 0.0, 1.0);
-      glVertex3f(r0 * cos(angle), r0 * sin(angle), width * 0.5);
-      glNormal3f(0.0, 0.0, 1.0);
-      glVertex3f(r1 * cos(angle2), r1 * sin(angle2), width * 0.5);
-      glNormal3f(0.0, 0.0, 1.0);
-      glVertex3f(r0 * cos(angle2), r0 * sin(angle2), width * 0.5);
+      buffer.push_back({ r0 * cos(angle), r0 * sin(angle), width * 0.5f, 0.0, 0.0, 1.0, red, green, blue });
+      buffer.push_back({ r1 * cos(angle + 3 * da), r1 * sin(angle + 3 * da), width * 0.5f, 0.0, 0.0, 1.0, red, green, blue });
+      buffer.push_back({ r1 * cos(angle2), r1 * sin(angle2), width * 0.5f, 0.0, 0.0, 1.0, red, green, blue });
+      buffer.push_back({ r0 * cos(angle), r0 * sin(angle), width * 0.5f, 0.0, 0.0, 1.0, red, green, blue });
+      buffer.push_back({ r1 * cos(angle2), r1 * sin(angle2), width * 0.5f, 0.0, 0.0, 1.0, red, green, blue });
+      buffer.push_back({ r0 * cos(angle2), r0 * sin(angle2), width * 0.5f, 0.0, 0.0, 1.0, red, green, blue });
 
       /* draw front sides of teeth */
-      glNormal3f(0.0, 0.0, 1.0);
-      glVertex3f(r1 * cos(angle), r1 * sin(angle), width * 0.5);
-      glNormal3f(0.0, 0.0, 1.0);
-      glVertex3f(r2 * cos(angle + da), r2 * sin(angle + da), width * 0.5);
-      glNormal3f(0.0, 0.0, 1.0);
-      glVertex3f(r2 * cos(angle + 2 * da), r2 * sin(angle + 2 * da), width * 0.5);
-      glNormal3f(0.0, 0.0, 1.0);
-      glVertex3f(r1 * cos(angle), r1 * sin(angle), width * 0.5);
-      glNormal3f(0.0, 0.0, 1.0);
-      glVertex3f(r2 * cos(angle + 2 * da), r2 * sin(angle + 2 * da), width * 0.5);
-      glNormal3f(0.0, 0.0, 1.0);
-      glVertex3f(r1 * cos(angle + 3 * da), r1 * sin(angle + 3 * da), width * 0.5);
+      buffer.push_back({ r1 * cos(angle), r1 * sin(angle), width * 0.5f, 0.0, 0.0, 1.0, red, green, blue });
+      buffer.push_back({ r2 * cos(angle + da), r2 * sin(angle + da), width * 0.5f, 0.0, 0.0, 1.0, red, green, blue });
+      buffer.push_back({ r2 * cos(angle + 2 * da), r2 * sin(angle + 2 * da), width * 0.5f, 0.0, 0.0, 1.0, red, green, blue });
+      buffer.push_back({ r1 * cos(angle), r1 * sin(angle), width * 0.5f, 0.0, 0.0, 1.0, red, green, blue });
+      buffer.push_back({ r2 * cos(angle + 2 * da), r2 * sin(angle + 2 * da), width * 0.5f, 0.0, 0.0, 1.0, red, green, blue });
+      buffer.push_back({ r1 * cos(angle + 3 * da), r1 * sin(angle + 3 * da), width * 0.5f, 0.0, 0.0, 1.0, red, green, blue });
 
       /* draw back face */
-      glNormal3f(0.0, 0.0, -1.0);
-      glVertex3f(r1 * cos(angle), r1 * sin(angle), -width * 0.5);
-      glNormal3f(0.0, 0.0, -1.0);
-      glVertex3f(r0 * cos(angle), r0 * sin(angle), -width * 0.5);
-      glNormal3f(0.0, 0.0, -1.0);
-      glVertex3f(r0 * cos(angle), r0 * sin(angle), -width * 0.5);
-      glNormal3f(0.0, 0.0, -1.0);
-      glVertex3f(r1 * cos(angle), r1 * sin(angle), -width * 0.5);
-      glNormal3f(0.0, 0.0, -1.0);
-      glVertex3f(r0 * cos(angle), r0 * sin(angle), -width * 0.5);
-      glNormal3f(0.0, 0.0, -1.0);
-      glVertex3f(r1 * cos(angle + 3 * da), r1 * sin(angle + 3 * da), -width * 0.5);
+      buffer.push_back({ r1 * cos(angle), r1 * sin(angle), -width * 0.5f, 0.0, 0.0, -1.0, red, green, blue });
+      buffer.push_back({ r0 * cos(angle), r0 * sin(angle), -width * 0.5f, 0.0, 0.0, -1.0, red, green, blue });
+      buffer.push_back({ r0 * cos(angle), r0 * sin(angle), -width * 0.5f, 0.0, 0.0, -1.0, red, green, blue });
+      buffer.push_back({ r1 * cos(angle), r1 * sin(angle), -width * 0.5f, 0.0, 0.0, -1.0, red, green, blue });
+      buffer.push_back({ r0 * cos(angle), r0 * sin(angle), -width * 0.5f, 0.0, 0.0, -1.0, red, green, blue });
+      buffer.push_back({ r1 * cos(angle + 3 * da), r1 * sin(angle + 3 * da), -width * 0.5f, 0.0, 0.0, -1.0, red, green, blue });
 
-      glNormal3f(0.0, 0.0, -1.0);
-      glVertex3f(r1 * cos(angle + 3 * da), r1 * sin(angle + 3 * da), -width * 0.5);
-      glNormal3f(0.0, 0.0, -1.0);
-      glVertex3f(r0 * cos(angle), r0 * sin(angle), -width * 0.5);
-      glNormal3f(0.0, 0.0, -1.0);
-      glVertex3f(r0 * cos(angle2), r0 * sin(angle2), -width * 0.5);
-      glNormal3f(0.0, 0.0, -1.0);
-      glVertex3f(r1 * cos(angle + 3 * da), r1 * sin(angle + 3 * da), -width * 0.5);
-      glNormal3f(0.0, 0.0, -1.0);
-      glVertex3f(r0 * cos(angle2), r0 * sin(angle2), -width * 0.5);
-      glNormal3f(0.0, 0.0, -1.0);
-      glVertex3f(r1 * cos(angle2), r1 * sin(angle2), -width * 0.5);
+      buffer.push_back({ r1 * cos(angle + 3 * da), r1 * sin(angle + 3 * da), -width * 0.5f, 0.0, 0.0, -1.0, red, green, blue });
+      buffer.push_back({ r0 * cos(angle), r0 * sin(angle), -width * 0.5f, 0.0, 0.0, -1.0, red, green, blue });
+      buffer.push_back({ r0 * cos(angle2), r0 * sin(angle2), -width * 0.5f, 0.0, 0.0, -1.0, red, green, blue });
+      buffer.push_back({ r1 * cos(angle + 3 * da), r1 * sin(angle + 3 * da), -width * 0.5f, 0.0, 0.0, -1.0, red, green, blue });
+      buffer.push_back({ r0 * cos(angle2), r0 * sin(angle2), -width * 0.5f, 0.0, 0.0, -1.0, red, green, blue });
+      buffer.push_back({ r1 * cos(angle2), r1 * sin(angle2), -width * 0.5f, 0.0, 0.0, -1.0, red, green, blue });
 
       /* draw back sides of teeth */
-      glNormal3f(0.0, 0.0, -1.0);
-      glVertex3f(r1 * cos(angle + 3 * da), r1 * sin(angle + 3 * da), -width * 0.5);
-      glNormal3f(0.0, 0.0, -1.0);
-      glVertex3f(r2 * cos(angle + 2 * da), r2 * sin(angle + 2 * da), -width * 0.5);
-      glNormal3f(0.0, 0.0, -1.0);
-      glVertex3f(r2 * cos(angle + da), r2 * sin(angle + da), -width * 0.5);
-      glNormal3f(0.0, 0.0, -1.0);
-      glVertex3f(r1 * cos(angle + 3 * da), r1 * sin(angle + 3 * da), -width * 0.5);
-      glNormal3f(0.0, 0.0, -1.0);
-      glVertex3f(r2 * cos(angle + da), r2 * sin(angle + da), -width * 0.5);
-      glNormal3f(0.0, 0.0, -1.0);
-      glVertex3f(r1 * cos(angle), r1 * sin(angle), -width * 0.5);
+      buffer.push_back({ r1 * cos(angle + 3 * da), r1 * sin(angle + 3 * da), -width * 0.5f, 0.0, 0.0, -1.0, red, green, blue });
+      buffer.push_back({ r2 * cos(angle + 2 * da), r2 * sin(angle + 2 * da), -width * 0.5f, 0.0, 0.0, -1.0, red, green, blue });
+      buffer.push_back({ r2 * cos(angle + da), r2 * sin(angle + da), -width * 0.5f, 0.0, 0.0, -1.0, red, green, blue });
+      buffer.push_back({ r1 * cos(angle + 3 * da), r1 * sin(angle + 3 * da), -width * 0.5f, 0.0, 0.0, -1.0, red, green, blue });
+      buffer.push_back({ r2 * cos(angle + da), r2 * sin(angle + da), -width * 0.5f, 0.0, 0.0, -1.0, red, green, blue });
+      buffer.push_back({ r1 * cos(angle), r1 * sin(angle), -width * 0.5f, 0.0, 0.0, -1.0, red, green, blue });
 
       /* draw outward faces of teeth */
-      glNormal3f(v, -u, 0.0);
-      glVertex3f(r1 * cos(angle), r1 * sin(angle), width * 0.5);
-      glNormal3f(v, -u, 0.0);
-      glVertex3f(r1 * cos(angle), r1 * sin(angle), -width * 0.5);
-      glNormal3f(v, -u, 0.0);
-      glVertex3f(r2 * cos(angle + da), r2 * sin(angle + da), -width * 0.5);
-      glNormal3f(v, -u, 0.0);
-      glVertex3f(r1 * cos(angle), r1 * sin(angle), width * 0.5);
-      glNormal3f(v, -u, 0.0);
-      glVertex3f(r2 * cos(angle + da), r2 * sin(angle + da), -width * 0.5);
-      glNormal3f(v, -u, 0.0);
-      glVertex3f(r2 * cos(angle + da), r2 * sin(angle + da), width * 0.5);
+      buffer.push_back({ r1 * cos(angle), r1 * sin(angle), width * 0.5f, v, -u, 0.0, red, green, blue });
+      buffer.push_back({ r1 * cos(angle), r1 * sin(angle), -width * 0.5f, v, -u, 0.0, red, green, blue });
+      buffer.push_back({ r2 * cos(angle + da), r2 * sin(angle + da), -width * 0.5f, v, -u, 0.0, red, green, blue });
+      buffer.push_back({ r1 * cos(angle), r1 * sin(angle), width * 0.5f, v, -u, 0.0, red, green, blue });
+      buffer.push_back({ r2 * cos(angle + da), r2 * sin(angle + da), -width * 0.5f, v, -u, 0.0, red, green, blue });
+      buffer.push_back({ r2 * cos(angle + da), r2 * sin(angle + da), width * 0.5f, v, -u, 0.0, red, green, blue });
 
-      glNormal3f(cos(angle), sin(angle), 0.0);
-      glVertex3f(r2 * cos(angle + da), r2 * sin(angle + da), width * 0.5);
-      glNormal3f(cos(angle), sin(angle), 0.0);
-      glVertex3f(r2 * cos(angle + da), r2 * sin(angle + da), -width * 0.5);
-      glNormal3f(cos(angle), sin(angle), 0.0);
-      glVertex3f(r2 * cos(angle + 2 * da), r2 * sin(angle + 2 * da), -width * 0.5);
-      glNormal3f(cos(angle), sin(angle), 0.0);
-      glVertex3f(r2 * cos(angle + da), r2 * sin(angle + da), width * 0.5);
-      glNormal3f(cos(angle), sin(angle), 0.0);
-      glVertex3f(r2 * cos(angle + 2 * da), r2 * sin(angle + 2 * da), -width * 0.5);
-      glNormal3f(cos(angle), sin(angle), 0.0);
-      glVertex3f(r2 * cos(angle + 2 * da), r2 * sin(angle + 2 * da), width * 0.5);
+      buffer.push_back({ r2 * cos(angle + da), r2 * sin(angle + da), width * 0.5f, cos(angle), sin(angle), 0.0, red, green, blue });
+      buffer.push_back({ r2 * cos(angle + da), r2 * sin(angle + da), -width * 0.5f, cos(angle), sin(angle), 0.0, red, green, blue });
+      buffer.push_back({ r2 * cos(angle + 2 * da), r2 * sin(angle + 2 * da), -width * 0.5f, cos(angle), sin(angle), 0.0, red, green, blue });
+      buffer.push_back({ r2 * cos(angle + da), r2 * sin(angle + da), width * 0.5f, cos(angle), sin(angle), 0.0, red, green, blue });
+      buffer.push_back({ r2 * cos(angle + 2 * da), r2 * sin(angle + 2 * da), -width * 0.5f, cos(angle), sin(angle), 0.0, red, green, blue });
+      buffer.push_back({ r2 * cos(angle + 2 * da), r2 * sin(angle + 2 * da), width * 0.5f, cos(angle), sin(angle), 0.0, red, green, blue });
 
-      glNormal3f(v2, -u2, 0.0);
-      glVertex3f(r2 * cos(angle + 2 * da), r2 * sin(angle + 2 * da), width * 0.5);
-      glNormal3f(v2, -u2, 0.0);
-      glVertex3f(r2 * cos(angle + 2 * da), r2 * sin(angle + 2 * da), -width * 0.5);
-      glNormal3f(v2, -u2, 0.0);
-      glVertex3f(r1 * cos(angle + 3 * da), r1 * sin(angle + 3 * da), -width * 0.5);
-      glNormal3f(v2, -u2, 0.0);
-      glVertex3f(r2 * cos(angle + 2 * da), r2 * sin(angle + 2 * da), width * 0.5);
-      glNormal3f(v2, -u2, 0.0);
-      glVertex3f(r1 * cos(angle + 3 * da), r1 * sin(angle + 3 * da), -width * 0.5);
-      glNormal3f(v2, -u2, 0.0);
-      glVertex3f(r1 * cos(angle + 3 * da), r1 * sin(angle + 3 * da), width * 0.5);
+      buffer.push_back({ r2 * cos(angle + 2 * da), r2 * sin(angle + 2 * da), width * 0.5f, v2, -u2, 0.0, red, green, blue });
+      buffer.push_back({ r2 * cos(angle + 2 * da), r2 * sin(angle + 2 * da), -width * 0.5f, v2, -u2, 0.0, red, green, blue });
+      buffer.push_back({ r1 * cos(angle + 3 * da), r1 * sin(angle + 3 * da), -width * 0.5f, v2, -u2, 0.0, red, green, blue });
+      buffer.push_back({ r2 * cos(angle + 2 * da), r2 * sin(angle + 2 * da), width * 0.5f, v2, -u2, 0.0, red, green, blue });
+      buffer.push_back({ r1 * cos(angle + 3 * da), r1 * sin(angle + 3 * da), -width * 0.5f, v2, -u2, 0.0, red, green, blue });
+      buffer.push_back({ r1 * cos(angle + 3 * da), r1 * sin(angle + 3 * da), width * 0.5f, v2, -u2, 0.0, red, green, blue });
 
-      glNormal3f(cos(angle2), sin(angle2), 0.0);
-      glVertex3f(r1 * cos(angle + 3 * da), r1 * sin(angle + 3 * da), width * 0.5);
-      glNormal3f(cos(angle2), sin(angle2), 0.0);
-      glVertex3f(r1 * cos(angle + 3 * da), r1 * sin(angle + 3 * da), -width * 0.5);
-      glNormal3f(cos(angle2), sin(angle2), 0.0);
-      glVertex3f(r1 * cos(angle2), r1 * sin(angle2), -width * 0.5);
-      glNormal3f(cos(angle2), sin(angle2), 0.0);
-      glVertex3f(r1 * cos(angle + 3 * da), r1 * sin(angle + 3 * da), width * 0.5);
-      glNormal3f(cos(angle2), sin(angle2), 0.0);
-      glVertex3f(r1 * cos(angle2), r1 * sin(angle2), -width * 0.5);
-      glNormal3f(cos(angle2), sin(angle2), 0.0);
-      glVertex3f(r1 * cos(angle2), r1 * sin(angle2), width * 0.5);
+      buffer.push_back({ r1 * cos(angle + 3 * da), r1 * sin(angle + 3 * da), width * 0.5f, cos(angle2), sin(angle2), 0.0, red, green, blue });
+      buffer.push_back({ r1 * cos(angle + 3 * da), r1 * sin(angle + 3 * da), -width * 0.5f, cos(angle2), sin(angle2), 0.0, red, green, blue });
+      buffer.push_back({ r1 * cos(angle2), r1 * sin(angle2), -width * 0.5f, cos(angle2), sin(angle2), 0.0, red, green, blue });
+      buffer.push_back({ r1 * cos(angle + 3 * da), r1 * sin(angle + 3 * da), width * 0.5f, cos(angle2), sin(angle2), 0.0, red, green, blue });
+      buffer.push_back({ r1 * cos(angle2), r1 * sin(angle2), -width * 0.5f, cos(angle2), sin(angle2), 0.0, red, green, blue });
+      buffer.push_back({ r1 * cos(angle2), r1 * sin(angle2), width * 0.5f, cos(angle2), sin(angle2), 0.0, red, green, blue });
 
       /* draw inside radius cylinder */
-      glNormal3f(-cos(angle), -sin(angle), 0.0);
-      glVertex3f(r0 * cos(angle), r0 * sin(angle), -width * 0.5);
-      glNormal3f(-cos(angle), -sin(angle), 0.0);
-      glVertex3f(r0 * cos(angle), r0 * sin(angle), width * 0.5);
-      glNormal3f(-cos(angle2), -sin(angle2), 0.0);
-      glVertex3f(r0 * cos(angle2), r0 * sin(angle2), width * 0.5);
-      glNormal3f(-cos(angle), -sin(angle), 0.0);
-      glVertex3f(r0 * cos(angle), r0 * sin(angle), -width * 0.5);
-      glNormal3f(-cos(angle2), -sin(angle2), 0.0);
-      glVertex3f(r0 * cos(angle2), r0 * sin(angle2), width * 0.5);
-      glNormal3f(-cos(angle2), -sin(angle2), 0.0);
-      glVertex3f(r0 * cos(angle2), r0 * sin(angle2), -width * 0.5);
+      buffer.push_back({ r0 * cos(angle), r0 * sin(angle), -width * 0.5f, -cos(angle), -sin(angle), 0.0, red, green, blue });
+      buffer.push_back({ r0 * cos(angle), r0 * sin(angle), width * 0.5f, -cos(angle2), -sin(angle2), 0.0, red, green, blue });
+      buffer.push_back({ r0 * cos(angle2), r0 * sin(angle2), width * 0.5f, -cos(angle), -sin(angle), 0.0, red, green, blue });
+      buffer.push_back({ r0 * cos(angle), r0 * sin(angle), -width * 0.5f, -cos(angle2), -sin(angle2), 0.0, red, green, blue });
+      buffer.push_back({ r0 * cos(angle2), r0 * sin(angle2), width * 0.5f, -cos(angle2), -sin(angle2), 0.0, red, green, blue });
+      buffer.push_back({ r0 * cos(angle2), r0 * sin(angle2), -width * 0.5f, -cos(angle), -sin(angle), 0.0, red, green, blue });
    }
-   glEnd();
+
+   GLuint vao;
+   glGenVertexArrays(1, &vao);
+   glBindVertexArray(vao);   
+
+   GLuint vbo;
+   glGenBuffers(1, &vbo);
+   glBindBuffer(GL_ARRAY_BUFFER, vbo);
+   glBufferData(GL_ARRAY_BUFFER, sizeof(vertex) * buffer.size(), buffer.data(), GL_STATIC_DRAW);
+   glEnableVertexAttribArray(0);
+   glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(vertex), (void*)0);
+   glEnableVertexAttribArray(1);
+   glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(vertex), (void*)12);
+   glEnableVertexAttribArray(2);
+   glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(vertex), (void*)24);
+
+   return vao;
 }
 
 
@@ -316,19 +267,22 @@ draw(void)
    glPushMatrix();
    glTranslatef(-3.0, -2.0, 0.0);
    glRotatef(angle, 0.0, 0.0, 1.0);
-   glCallList(gear1);
+   glBindVertexArray(gear1);
+   glDrawArrays(GL_TRIANGLES, 0, 1320);
    glPopMatrix();
 
    glPushMatrix();
    glTranslatef(3.1, -2.0, 0.0);
    glRotatef(-2.0 * angle - 9.0, 0.0, 0.0, 1.0);
-   glCallList(gear2);
+   glBindVertexArray(gear2);
+   glDrawArrays(GL_TRIANGLES, 0, 660);
    glPopMatrix();
 
    glPushMatrix();
    glTranslatef(-3.1, 4.2, 0.0);
    glRotatef(-2.0 * angle - 25.0, 0.0, 0.0, 1.0);
-   glCallList(gear3);
+   glBindVertexArray(gear3);
+   glDrawArrays(GL_TRIANGLES, 0, 660);
    glPopMatrix();
 
    glPopMatrix();
@@ -430,42 +384,85 @@ reshape(int width, int height)
    right = 5.0 * ((w + 0.5 * eyesep) / fix_point);
 }
    
+
+static const char vertexShader[] =
+"#version 330 core\n"
+"#extension GL_ARB_separate_shader_objects : enable\n"
+"layout(location = 0) in vec3 position;\n"
+"layout(location = 1) in vec3 normal;\n"
+"layout(location = 2) in vec3 color;\n"
+"uniform mat4 mvp;\n"
+"layout(location = 0) out vec4 vs_position;\n"
+"layout(location = 1) out vec3 vs_normal;\n"
+"layout(location = 2) out vec3 vs_color;\n"
+"void main(){\n"
+"  vs_position = vec4(position, 1);\n"
+"  gl_Position = mvp * vec4(position, 1);\n"
+"  vs_normal = mat3(mvp) * normal;\n"
+"  vs_color = color;\n"
+"}\n"
+;
+
+static const char fragmentShader[] =
+"#version 330 core\n"
+"#extension GL_ARB_separate_shader_objects : enable\n"
+"layout(location = 0) in vec4 vs_position;\n"
+"layout(location = 1) in vec3 vs_normal;\n"
+"layout(location = 2) in vec3 vs_color;\n"
+"out vec4 color;\n"
+"void main(){\n"
+"  color = vec4(vs_color, 1.0);\n"
+"}\n"
+;
+
+static void checkShaderError(GLuint shader) {
+	int InfoLogLength;  
+	glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &InfoLogLength);
+	if ( InfoLogLength > 0 ){
+		std::vector<char> VertexShaderErrorMessage(InfoLogLength+1);
+		glGetShaderInfoLog(shader, InfoLogLength, NULL, VertexShaderErrorMessage.data());
+		printf("%s\n", VertexShaderErrorMessage.data());
+	}
+}
+
 static void
 init(void)
 {
-   static GLfloat pos[4] = { 5.0, 5.0, 10.0, 0.0 };
-   static GLfloat red[4] = { 0.8, 0.1, 0.0, 1.0 };
-   static GLfloat green[4] = { 0.0, 0.8, 0.2, 1.0 };
-   static GLfloat blue[4] = { 0.2, 0.2, 1.0, 1.0 };
-
-   glLightfv(GL_LIGHT0, GL_POSITION, pos);
    glEnable(GL_CULL_FACE);
-   glEnable(GL_LIGHTING);
-   glEnable(GL_LIGHT0);
    glEnable(GL_DEPTH_TEST);
 
    /* make the gears */
-   gear1 = glGenLists(1);
-   glNewList(gear1, GL_COMPILE);
-   glMaterialfv(GL_FRONT, GL_AMBIENT_AND_DIFFUSE, red);
-   gear(1.0, 4.0, 1.0, 20, 0.7);
-   glEndList();
+   gear1 = gear(1.0, 4.0, 1.0, 20, 0.7, 0.8, 0.1, 0.0);
+   gear2 = gear(0.5, 2.0, 2.0, 10, 0.7, 0.0, 0.8, 0.2);
+   gear3 = gear(1.3, 2.0, 0.5, 10, 0.7, 0.2, 0.2, 1.0);
 
-   gear2 = glGenLists(1);
-   glNewList(gear2, GL_COMPILE);
-   glMaterialfv(GL_FRONT, GL_AMBIENT_AND_DIFFUSE, green);
-   gear(0.5, 2.0, 2.0, 10, 0.7);
-   glEndList();
+   GLuint fs = glCreateShader(GL_FRAGMENT_SHADER);
+   const char* fragmentShaderSource = fragmentShader;
+   glShaderSource(fs, 1, &fragmentShaderSource, NULL);
+   glCompileShader(fs);
 
-   gear3 = glGenLists(1);
-   glNewList(gear3, GL_COMPILE);
-   glMaterialfv(GL_FRONT, GL_AMBIENT_AND_DIFFUSE, blue);
-   gear(1.3, 2.0, 0.5, 10, 0.7);
-   glEndList();
+   checkShaderError(fs);
 
-   glEnable(GL_NORMALIZE);
+   const char* vertexShaderSource = vertexShader;
+   GLuint vs = glCreateShader(GL_VERTEX_SHADER);
+   glShaderSource(vs, 1, &vertexShaderSource, NULL);
+   glCompileShader(vs);
+
+   checkShaderError(vs);
+
+   shaderProgram = glCreateProgram();
+   glAttachShader(shaderProgram, vs);
+   glAttachShader(shaderProgram, fs);
+   glLinkProgram(shaderProgram);
+
+   static GLfloat pos[4] = { 5.0, 5.0, 10.0, 0.0 };
+   glLightfv(GL_LIGHT0, GL_POSITION, pos);
+
+   glUseProgram(shaderProgram);
+
+   float matrix[16] = { 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1 };
+   glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "mvp"), 1, false, matrix);
 }
-
 
 /**
  * Remove window border/decorations.
@@ -822,6 +819,7 @@ main(int argc, char *argv[])
    glXMakeCurrent(dpy, win, ctx);
    query_vsync(dpy, win);
 
+   glewInit();
    if (printInfo) {
       printf("GL_RENDERER   = %s\n", (char *) glGetString(GL_RENDERER));
       printf("GL_VERSION    = %s\n", (char *) glGetString(GL_VERSION));
